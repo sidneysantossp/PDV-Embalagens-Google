@@ -27,15 +27,23 @@ export default function Estoque(){
   const [showAjuste,setShowAjuste]=useState(false);
   const [showInventario,setShowInventario]=useState(false);
   const [allowNegative,setAllowNegative]=useState(false);
+  const [lowStock,setLowStock]=useState<any[]>([]);
+  const [onlyLow,setOnlyLow]=useState(false);
 
   const load=()=>{
     fetch('/api/produtos').then(r=>r.json()).then(setProdutos);
     fetch('/api/estoque/movimentacoes').then(r=>r.json()).then(setMovs);
     fetch('/api/estoque/config').then(r=>r.json()).then(c=> setAllowNegative(c.allowNegativeStock));
+    fetch('/api/estoque/low-stock').then(r=>r.json()).then(setLowStock);
   };
   useEffect(()=>{ load(); },[]);
 
-  const filtered=produtos.filter(p=> !search || p.nome.toLowerCase().includes(search.toLowerCase()) || p.codigo.includes(search));
+  const filtered=produtos.filter(p=> (!onlyLow || lowStock.some(alert=>alert.productId===p.id)) && (!search || p.nome.toLowerCase().includes(search.toLowerCase()) || p.codigo.includes(search)));
+  const saveMinimum=async(productId:string, value:string)=>{
+    const minimumStockQuantity=Number(value);
+    const res=await fetch(`/api/produtos/${productId}/minimum-stock`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({minimumStockQuantity})});
+    if(!res.ok){ alert((await res.json()).error); return; } load();
+  };
 
   return (
     <div className="flex-1 p-8 bg-white overflow-hidden flex flex-col h-full rounded-tl-[32px] shadow-[0_8px_30px_rgba(0,0,0,0.04)]">
@@ -62,7 +70,10 @@ export default function Estoque(){
           <Search className="absolute left-3 top-3.5 h-5 w-5 text-gray-400" />
           <input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Buscar produto..." className="w-full pl-11 pr-4 py-3 border border-[#DFE3DF] rounded-xl focus:outline-none focus:ring-2 focus:ring-[#48905A]" />
         </div>
+        <button onClick={()=>setOnlyLow(!onlyLow)} className={`px-4 rounded-xl border font-semibold ${onlyLow ? 'bg-amber-100 border-amber-300 text-amber-800' : 'border-[#DFE3DF]'}`}>Estoque baixo ({lowStock.length})</button>
       </div>
+
+      {lowStock.length>0 && <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4 text-amber-900"><strong>{lowStock.length} produto(s) precisam de reposição.</strong><button className="ml-3 underline font-semibold" onClick={()=>setOnlyLow(true)}>Ver produtos</button></div>}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 overflow-hidden">
         <div className="border border-[#DFE3DF] rounded-2xl overflow-auto bg-white">
@@ -72,17 +83,24 @@ export default function Estoque(){
               <tr>
                 <th className="px-4 py-2 text-left text-xs font-bold text-[#74747C] uppercase">Produto</th>
                 <th className="px-4 py-2 text-right text-xs font-bold text-[#74747C] uppercase">Estoque</th>
+                <th className="px-4 py-2 text-right text-xs font-bold text-[#74747C] uppercase">Mínimo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#DFE3DF]">
               {filtered.map(p=>(
                 <tr key={p.id} className="hover:bg-gray-50">
                   <td className="px-4 py-3 text-sm font-medium">{p.codigo} — {p.nome}</td>
-                  <td className="px-4 py-3 text-right font-bold text-[#15543C]">{p.estGeral}</td>
+                  <td className="px-4 py-3 text-right font-bold text-[#15543C]">{p.estGeral}{lowStock.some(alert=>alert.productId===p.id) && <span className="ml-2 text-xs rounded bg-amber-100 px-2 py-1 text-amber-800">Reposição</span>}</td>
+                  <td className="px-4 py-3 text-right"><input aria-label={`Estoque mínimo ${p.nome}`} type="number" min="0" step="1" defaultValue={p.minimumStockQuantity ?? 0} onBlur={e=>void saveMinimum(p.id,e.target.value)} className="w-16 rounded border border-[#DFE3DF] p-1 text-right" /></td>
                 </tr>
               ))}
             </tbody>
           </table>
+        </div>
+
+        <div className="border border-[#DFE3DF] rounded-2xl overflow-auto bg-white">
+          <div className="px-4 py-3 bg-[#F4F5F4] font-bold text-sm text-[#15543C] sticky top-0">Reposição sugerida</div>
+          {lowStock.length===0 ? <div className="p-6 text-gray-500">Nenhum produto abaixo do estoque mínimo.</div> : lowStock.map(alert=><div key={alert.productId} className="p-4 border-b text-sm"><strong>{alert.code} — {alert.productName}</strong><div className="mt-1 text-gray-600">Saldo {alert.currentStock} / mín. {alert.minimumStock} · Sugerido: <b>{alert.suggestedQuantity}</b></div><div className="text-gray-500">{alert.suppliersSummary}</div></div>)}
         </div>
 
         <div className="border border-[#DFE3DF] rounded-2xl overflow-auto bg-white">

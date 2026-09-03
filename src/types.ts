@@ -6,6 +6,8 @@ export interface Produto {
   valor: number;
   custo: number;
   estGeral: number;
+  minimumStockQuantity?: number;
+  status?: 'ACTIVE' | 'INACTIVE';
   gradeRow?: string;
   gradeCol?: string;
   imagem?: string;

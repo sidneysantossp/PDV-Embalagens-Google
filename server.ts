@@ -11,6 +11,7 @@ import { PurchaseReceiptService } from './src/services/PurchaseReceiptService';
 import { AccountPayableService } from './src/services/AccountPayableService';
 import { AccountReceivableService } from './src/services/AccountReceivableService';
 import { StockService } from './src/services/StockService';
+import { LowStockService } from './src/services/LowStockService';
 
 const caixaService = new CaixaService();
 const vendaService = new VendaService();
@@ -20,6 +21,7 @@ const purchaseReceiptService = new PurchaseReceiptService();
 const accountPayableService = new AccountPayableService();
 const accountReceivableService = new AccountReceivableService();
 const stockService = new StockService();
+const lowStockService = new LowStockService();
 
 async function startServer() {
   const app = express();
@@ -28,6 +30,10 @@ async function startServer() {
 
   app.get('/api/produtos', (req, res) => {
     res.json(db.produtos);
+  });
+  app.put('/api/produtos/:id/minimum-stock', (req, res) => {
+    try { res.json(lowStockService.setMinimum(req.params.id, Number(req.body.minimumStockQuantity))); }
+    catch (e: any) { res.status(400).json({ error: e.message }); }
   });
   app.get('/api/clientes', (req, res) => {
     res.json(db.clientes);
@@ -566,6 +572,7 @@ async function startServer() {
       res.json(stockService.listMovements(productId));
     } catch(e:any){ res.status(400).json({error:e.message}); }
   });
+  app.get('/api/estoque/low-stock', (_req,res)=> { res.json(lowStockService.list()); });
   app.post('/api/estoque/ajuste', (req,res)=>{
     try{
       const { productId, direction, quantity, reason, notes, operator } = req.body;
