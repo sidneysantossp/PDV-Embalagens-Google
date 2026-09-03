@@ -67,6 +67,16 @@ export default function Configuracoes() {
               <p className="text-xs text-[#74747C] mt-2">Define o limite de parcelas disponíveis no checkout ao selecionar Cartão de Crédito.</p>
             </div>
 
+            <div className="border-t border-[#DFE3DF] pt-6">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input type="checkbox" checked={!!config.allowStoreCredit} onChange={(e)=> setConfig({...config, allowStoreCredit: e.target.checked})} className="w-5 h-5 accent-[#48905A]" />
+                <div>
+                  <div className="text-sm font-semibold text-[#14171F]">Permitir venda a prazo / crediário</div>
+                  <div className="text-xs text-[#74747C]">Registrar valor para recebimento futuro. Requer cliente e vencimento.</div>
+                </div>
+              </label>
+            </div>
+
             <div className="pt-4 border-t border-[#DFE3DF]">
               <button 
                 onClick={handleSave}

@@ -29,9 +29,13 @@ import type { Produto, Venda, VendaItem } from './types';
 import Caixa from './components/Caixa';
 import Configuracoes from './components/Configuracoes';
 import FornecedoresList from './components/FornecedoresList';
+import ComprasList from './components/ComprasList';
+import ContasAPagar from './components/ContasAPagar';
+import ContasAReceber from './components/ContasAReceber';
+import Estoque from './components/Estoque';
 
 export default function App() {
-  const [activeTab, setActiveTab] = useState<'pdv' | 'caixa' | 'vendas' | 'config' | 'fornecedores'>('pdv');
+  const [activeTab, setActiveTab] = useState<'pdv' | 'caixa' | 'vendas' | 'config' | 'fornecedores' | 'compras' | 'contas' | 'receber' | 'estoque'>('pdv');
   const [produtos, setProdutos] = useState<Produto[]>([]);
   const [carrinho, setCarrinho] = useState<{ produto: Produto, quantidade: number }[]>([]);
   const [loading, setLoading] = useState(true);
@@ -93,14 +97,14 @@ export default function App() {
   const desconto = Math.min(descontoCalculado, subtotal);
   const total = subtotal - desconto;
 
-  const finalizarVenda = async (pagamentos: any[]) => {
+  const finalizarVenda = async (pagamentos: any[], extra?: { clienteId?: string; dueDate?: string }) => {
     if (carrinho.length === 0) return;
     if (!caixaAtual) {
       alert('Nenhum caixa aberto!');
       return;
     }
     
-    const venda = {
+    const venda: any = {
       subtotal,
       desconto,
       total,
@@ -111,7 +115,9 @@ export default function App() {
         valorUnitario: item.produto.valor,
         total: item.produto.valor * item.quantidade
       })),
-      pagamentos
+      pagamentos,
+      clienteId: extra?.clienteId,
+      dueDate: extra?.dueDate
     };
 
     try {
@@ -169,9 +175,14 @@ export default function App() {
             <Box className="w-[22px] h-[22px]" strokeWidth={2} />
             <span className="font-semibold text-[17px]">Produtos</span>
           </div>
-          <div className="mx-[21px] flex items-center gap-4 text-[#14171F] h-[59px] px-[18px] hover:bg-[#E5EEE5] rounded-[15px] cursor-pointer transition-colors">
+          <div 
+            onClick={() => setActiveTab('estoque')}
+            className={`mx-[21px] flex items-center gap-4 rounded-[15px] h-[59px] px-[18px] cursor-pointer transition-colors ${
+              activeTab === 'estoque' ? 'bg-[#DDEBDD] text-[#15543C]' : 'text-[#14171F] hover:bg-[#E5EEE5]'
+            }`}
+          >
             <ClipboardList className="w-[22px] h-[22px]" strokeWidth={2} />
-            <span className="font-semibold text-[17px]">Estoque</span>
+            <span className={`font-semibold text-[17px] ${activeTab === 'estoque' ? 'font-bold' : ''}`}>Estoque</span>
           </div>
           <div className="mx-[21px] flex items-center gap-4 text-[#14171F] h-[59px] px-[18px] hover:bg-[#E5EEE5] rounded-[15px] cursor-pointer transition-colors">
             <Users className="w-[22px] h-[22px]" strokeWidth={2} />
@@ -208,6 +219,36 @@ export default function App() {
           >
             <Truck className="w-[22px] h-[22px]" strokeWidth={2} />
             <span className={`font-semibold text-[17px] ${activeTab === 'fornecedores' ? 'font-bold' : ''}`}>Fornecedores</span>
+          </div>
+
+          <div 
+            onClick={() => setActiveTab('compras')}
+            className={`mx-[21px] flex items-center gap-4 rounded-[15px] h-[59px] px-[18px] cursor-pointer transition-colors ${
+              activeTab === 'compras' ? 'bg-[#DDEBDD] text-[#15543C]' : 'text-[#14171F] hover:bg-[#E5EEE5]'
+            }`}
+          >
+            <ClipboardList className="w-[22px] h-[22px]" strokeWidth={2} />
+            <span className={`font-semibold text-[17px] ${activeTab === 'compras' ? 'font-bold' : ''}`}>Compras</span>
+          </div>
+
+          <div 
+            onClick={() => setActiveTab('contas')}
+            className={`mx-[21px] flex items-center gap-4 rounded-[15px] h-[59px] px-[18px] cursor-pointer transition-colors ${
+              activeTab === 'contas' ? 'bg-[#DDEBDD] text-[#15543C]' : 'text-[#14171F] hover:bg-[#E5EEE5]'
+            }`}
+          >
+            <Wallet className="w-[22px] h-[22px]" strokeWidth={2} />
+            <span className={`font-semibold text-[17px] ${activeTab === 'contas' ? 'font-bold' : ''}`}>Contas a pagar</span>
+          </div>
+
+          <div 
+            onClick={() => setActiveTab('receber')}
+            className={`mx-[21px] flex items-center gap-4 rounded-[15px] h-[59px] px-[18px] cursor-pointer transition-colors ${
+              activeTab === 'receber' ? 'bg-[#DDEBDD] text-[#15543C]' : 'text-[#14171F] hover:bg-[#E5EEE5]'
+            }`}
+          >
+            <Wallet className="w-[22px] h-[22px]" strokeWidth={2} />
+            <span className={`font-semibold text-[17px] ${activeTab === 'receber' ? 'font-bold' : ''}`}>Contas a receber</span>
           </div>
 
           <div 
@@ -501,8 +542,20 @@ export default function App() {
         </main>
       ) : activeTab === 'caixa' ? (
         <Caixa />
-      ) : (
+      ) : activeTab === 'vendas' ? (
         <VendasList />
+      ) : activeTab === 'fornecedores' ? (
+        <FornecedoresList />
+      ) : activeTab === 'compras' ? (
+        <ComprasList />
+      ) : activeTab === 'contas' ? (
+        <ContasAPagar />
+      ) : activeTab === 'receber' ? (
+        <ContasAReceber />
+      ) : activeTab === 'estoque' ? (
+        <Estoque />
+      ) : (
+        <Configuracoes />
       )}
       {checkoutModalOpen && (
         <PagamentoModal

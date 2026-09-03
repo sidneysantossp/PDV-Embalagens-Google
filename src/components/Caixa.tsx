@@ -287,6 +287,14 @@ export default function Caixa() {
                               <td className="py-3 px-4">
                                 {m.type === 'SUPPLY' ? (
                                   <span className="text-[#48905A] font-semibold text-[14px]">Suprimento</span>
+                                ) : m.type === 'PAYABLE_PAYMENT' ? (
+                                  <span className="text-red-500 font-semibold text-[14px]">Pagamento de conta</span>
+                                ) : m.type === 'RECEIVABLE_RECEIPT' ? (
+                                  <span className="text-[#48905A] font-semibold text-[14px]">Recebimento de conta</span>
+                                ) : m.type === 'PAYABLE_PAYMENT_REVERSAL' ? (
+                                  <span className="text-[#48905A] font-semibold text-[14px]">Estorno de pagamento</span>
+                                ) : m.type === 'RECEIVABLE_PAYMENT_REVERSAL' ? (
+                                  <span className="text-red-500 font-semibold text-[14px]">Estorno de recebimento</span>
                                 ) : (
                                   <span className="text-red-500 font-semibold text-[14px]">Sangria</span>
                                 )}
@@ -296,8 +304,8 @@ export default function Caixa() {
                                 {m.note && <div className="text-[12px] text-[#74747C] mt-0.5 line-clamp-1">{m.note}</div>}
                               </td>
                               <td className="py-3 px-4 text-[#14171F]">{m.operator}</td>
-                              <td className={`py-3 px-4 font-bold text-right ${m.type === 'SUPPLY' ? 'text-[#48905A]' : 'text-red-500'}`}>
-                                {m.type === 'SUPPLY' ? '+' : '-'} {formatCurrency(m.amountCents)}
+                              <td className={`py-3 px-4 font-bold text-right ${(m.type === 'SUPPLY' || m.type === 'RECEIVABLE_RECEIPT' || m.type === 'PAYABLE_PAYMENT_REVERSAL') ? 'text-[#48905A]' : 'text-red-500'}`}>
+                                {(m.type === 'SUPPLY' || m.type === 'RECEIVABLE_RECEIPT' || m.type === 'PAYABLE_PAYMENT_REVERSAL') ? '+' : '-'} {formatCurrency(m.amountCents)}
                               </td>
                             </tr>
                           ))

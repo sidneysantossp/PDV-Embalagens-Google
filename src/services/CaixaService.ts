@@ -18,8 +18,14 @@ export class CaixaService {
     if (!sessaoAberta) return null;
 
     const movs = this.repo.getMovimentacoesSessao(sessaoAberta.id);
-    const entradas = movs.filter(m => m.type === 'SUPPLY').reduce((acc, m) => acc + m.amountCents, 0);
-    const saidas = movs.filter(m => m.type === 'WITHDRAWAL').reduce((acc, m) => acc + m.amountCents, 0);
+    const entradasSupply = movs.filter(m => m.type === 'SUPPLY').reduce((acc, m) => acc + m.amountCents, 0);
+    const entradasRecebimentos = movs.filter(m => m.type === 'RECEIVABLE_RECEIPT').reduce((acc, m) => acc + m.amountCents, 0);
+    const entradasReversaoPayable = movs.filter(m => m.type === 'PAYABLE_PAYMENT_REVERSAL').reduce((acc, m) => acc + m.amountCents, 0);
+    const entradas = entradasSupply + entradasRecebimentos + entradasReversaoPayable;
+    const saidasSangria = movs.filter(m => m.type === 'WITHDRAWAL').reduce((acc, m) => acc + m.amountCents, 0);
+    const saidasPagamentos = movs.filter(m => m.type === 'PAYABLE_PAYMENT').reduce((acc, m) => acc + m.amountCents, 0);
+    const saidasReversaoRecebivel = movs.filter(m => m.type === 'RECEIVABLE_PAYMENT_REVERSAL').reduce((acc, m) => acc + m.amountCents, 0);
+    const saidas = saidasSangria + saidasPagamentos + saidasReversaoRecebivel;
     const entradasVendasCash = this.calcularEntradasVendas(sessaoAberta.id);
     
     const expectedAmountCents = sessaoAberta.openingAmountCents + entradas + entradasVendasCash - saidas;
@@ -28,6 +34,8 @@ export class CaixaService {
       ...sessaoAberta,
       entradas,
       saidas,
+      saidasSangria,
+      saidasPagamentos,
       expectedAmountCents,
       entradasVendasCash, // opcional mostrar isso
       movimentacoes: movs.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -64,8 +72,8 @@ export class CaixaService {
     }
 
     const movs = this.repo.getMovimentacoesSessao(sessao.id);
-    const entradas = movs.filter(m => m.type === 'SUPPLY').reduce((acc, m) => acc + m.amountCents, 0);
-    const saidas = movs.filter(m => m.type === 'WITHDRAWAL').reduce((acc, m) => acc + m.amountCents, 0);
+    const entradas = movs.filter(m => m.type === 'SUPPLY' || m.type === 'RECEIVABLE_RECEIPT' || m.type === 'PAYABLE_PAYMENT_REVERSAL').reduce((acc, m) => acc + m.amountCents, 0);
+    const saidas = movs.filter(m => m.type === 'WITHDRAWAL' || m.type === 'PAYABLE_PAYMENT' || m.type === 'RECEIVABLE_PAYMENT_REVERSAL').reduce((acc, m) => acc + m.amountCents, 0);
     const entradasVendasCash = this.calcularEntradasVendas(sessao.id);
     const expectedAmountCents = sessao.openingAmountCents + entradas + entradasVendasCash - saidas;
 
@@ -100,8 +108,8 @@ export class CaixaService {
     }
 
     const movs = this.repo.getMovimentacoesSessao(sessaoAberta.id);
-    const entradas = movs.filter(m => m.type === 'SUPPLY').reduce((acc, m) => acc + m.amountCents, 0);
-    const saidas = movs.filter(m => m.type === 'WITHDRAWAL').reduce((acc, m) => acc + m.amountCents, 0);
+    const entradas = movs.filter(m => m.type === 'SUPPLY' || m.type === 'RECEIVABLE_RECEIPT' || m.type === 'PAYABLE_PAYMENT_REVERSAL').reduce((acc, m) => acc + m.amountCents, 0);
+    const saidas = movs.filter(m => m.type === 'WITHDRAWAL' || m.type === 'PAYABLE_PAYMENT' || m.type === 'RECEIVABLE_PAYMENT_REVERSAL').reduce((acc, m) => acc + m.amountCents, 0);
     const entradasVendasCash = this.calcularEntradasVendas(sessaoAberta.id);
     const saldoDisponivel = sessaoAberta.openingAmountCents + entradas + entradasVendasCash - saidas;
 

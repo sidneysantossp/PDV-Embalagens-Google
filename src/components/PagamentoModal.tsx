@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, DollarSign, CreditCard, Smartphone, Trash2 } from 'lucide-react';
-import type { PagamentoVenda, MetodoPagamento, ConfiguracaoPagamento } from '../types';
+import type { PagamentoVenda, MetodoPagamento, ConfiguracaoPagamento, Cliente } from '../types';
 import { splitIntoInstallments } from '../utils';
 
 interface PagamentoModalProps {
   total: number;
   onClose: () => void;
-  onConfirm: (pagamentos: Omit<PagamentoVenda, 'id' | 'vendaId'>[]) => void;
+  onConfirm: (pagamentos: Omit<PagamentoVenda, 'id' | 'vendaId'>[], extra?: { clienteId?: string; dueDate?: string }) => void;
 }
 
 const METHODS = [
@@ -14,6 +14,7 @@ const METHODS = [
   { id: 'PIX', label: 'PIX', icon: Smartphone },
   { id: 'DEBIT_CARD', label: 'Débito', icon: CreditCard },
   { id: 'CREDIT_CARD', label: 'Crédito', icon: CreditCard },
+  { id: 'STORE_CREDIT', label: 'A prazo', icon: CreditCard },
 ];
 
 export default function PagamentoModal({ total, onClose, onConfirm }: PagamentoModalProps) {
@@ -24,12 +25,16 @@ export default function PagamentoModal({ total, onClose, onConfirm }: PagamentoM
   const [valorRecebidoInput, setValorRecebidoInput] = useState('');
   const [installmentsInput, setInstallmentsInput] = useState(1);
   const [config, setConfig] = useState<ConfiguracaoPagamento | null>(null);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [selectedClienteId, setSelectedClienteId] = useState('');
+  const [dueDate, setDueDate] = useState('');
 
   useEffect(() => {
     fetch('/api/config/pagamento')
       .then(res => res.json())
       .then(data => setConfig(data))
       .catch(console.error);
+    fetch('/api/clientes').then(r=>r.json()).then(setClientes).catch(()=>{});
   }, []);
 
   const totalCents = Math.round(total * 100);
@@ -41,6 +46,18 @@ export default function PagamentoModal({ total, onClose, onConfirm }: PagamentoM
   };
 
   const handleSelectMethod = (method: string) => {
+    if (method === 'STORE_CREDIT' && !config?.allowStoreCredit) {
+      alert('Venda a prazo desabilitada nas configurações.');
+      return;
+    }
+    if (method === 'STORE_CREDIT' && pagamentos.length > 0) {
+      alert('Venda a prazo deve ser 100% a prazo, sem outros pagamentos.');
+      return;
+    }
+    if (pagamentos.some(p=> p.metodo === 'STORE_CREDIT')) {
+      alert('Venda a prazo deve ser 100% a prazo, sem outros pagamentos.');
+      return;
+    }
     const existing = pagamentos.find(p => p.metodo === method);
     if (existing) {
       alert('Método já adicionado.');
@@ -51,11 +68,35 @@ export default function PagamentoModal({ total, onClose, onConfirm }: PagamentoM
     if (method === 'CASH') {
       setValorRecebidoInput((restanteCents / 100).toFixed(2).replace('.', ','));
     }
+    if (method === 'STORE_CREDIT') {
+      // Força valor integral
+      setValorInput((restanteCents / 100).toFixed(2).replace('.', ','));
+      if (!dueDate) {
+        const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate()+30);
+        setDueDate(tomorrow.toISOString().slice(0,10));
+      }
+    }
     setInstallmentsInput(1);
   };
 
   const handleAddPayment = () => {
     if (!selectedMethod) return;
+
+    if (selectedMethod === 'STORE_CREDIT') {
+      if (!selectedClienteId) {
+        alert('Selecione um cliente para realizar uma venda a prazo.');
+        return;
+      }
+      if (!dueDate) {
+        alert('Data de vencimento é obrigatória para venda a prazo.');
+        return;
+      }
+      const todayStr = new Date().toISOString().slice(0,10);
+      if (dueDate < todayStr) {
+        alert('Data de vencimento não pode ser anterior à data da venda.');
+        return;
+      }
+    }
 
     const valNum = parseFloat(valorInput.replace(',', '.')) || 0;
     const valCents = Math.round(valNum * 100);
@@ -67,6 +108,11 @@ export default function PagamentoModal({ total, onClose, onConfirm }: PagamentoM
 
     if (valCents > restanteCents) {
       alert('O valor não pode ser maior que o restante.');
+      return;
+    }
+
+    if (selectedMethod === 'STORE_CREDIT' && valCents !== restanteCents) {
+      alert('Venda a prazo deve ser 100% a prazo com valor integral.');
       return;
     }
 
@@ -108,7 +154,20 @@ export default function PagamentoModal({ total, onClose, onConfirm }: PagamentoM
       alert('Ainda há valor restante a pagar.');
       return;
     }
-    onConfirm(pagamentos);
+    const hasStoreCredit = pagamentos.some(p=> p.metodo === 'STORE_CREDIT');
+    if (hasStoreCredit) {
+      if (!selectedClienteId) {
+        alert('Selecione um cliente para realizar uma venda a prazo.');
+        return;
+      }
+      if (!dueDate) {
+        alert('Data de vencimento é obrigatória para venda a prazo.');
+        return;
+      }
+      onConfirm(pagamentos, { clienteId: selectedClienteId, dueDate });
+    } else {
+      onConfirm(pagamentos);
+    }
   };
 
   const currentValCents = Math.round((parseFloat(valorInput.replace(',', '.')) || 0) * 100);
@@ -181,7 +240,7 @@ export default function PagamentoModal({ total, onClose, onConfirm }: PagamentoM
             <div>
               <h3 className="text-sm font-semibold text-[#14171F] mb-3">Adicionar pagamento</h3>
               <div className="grid grid-cols-2 gap-3">
-                {METHODS.map(m => {
+                {METHODS.filter(m=> m.id !== 'STORE_CREDIT' || config?.allowStoreCredit).map(m => {
                   const Icon = m.icon;
                   const isAdded = pagamentos.some(p => p.metodo === m.id);
                   return (
@@ -219,10 +278,31 @@ export default function PagamentoModal({ total, onClose, onConfirm }: PagamentoM
                   <input
                     type="text"
                     value={valorInput}
-                    onChange={(e) => setValorInput(e.target.value.replace(/[^0-9,]/g, ''))}
-                    className="w-full border border-[#DFE3DF] rounded-lg px-3 py-2 outline-none focus:border-[#48905A]"
+                    onChange={(e) => { if(selectedMethod !== 'STORE_CREDIT') setValorInput(e.target.value.replace(/[^0-9,]/g, ''))}}
+                    readOnly={selectedMethod === 'STORE_CREDIT'}
+                    className={`w-full border border-[#DFE3DF] rounded-lg px-3 py-2 outline-none focus:border-[#48905A] ${selectedMethod === 'STORE_CREDIT' ? 'bg-gray-100' : ''}`}
                   />
+                  {selectedMethod === 'STORE_CREDIT' && <div className="text-xs text-[#74747C] mt-1">Venda a prazo deve ser 100% do total.</div>}
                 </div>
+
+                {selectedMethod === 'STORE_CREDIT' && (
+                  <>
+                    <div>
+                      <label className="block text-sm text-[#74747C] mb-1">Cliente *</label>
+                      <select value={selectedClienteId} onChange={e=>setSelectedClienteId(e.target.value)} className="w-full border border-[#DFE3DF] rounded-lg px-3 py-2 outline-none focus:border-[#48905A]">
+                        <option value="">Selecione cliente</option>
+                        {clientes.filter(c=> (c as any).status !== 'INACTIVE').map(c=> (
+                          <option key={c.id} value={c.id}>{c.nome} - {c.codigo}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-sm text-[#74747C] mb-1">Vencimento *</label>
+                      <input type="date" value={dueDate} onChange={e=>setDueDate(e.target.value)} className="w-full border border-[#DFE3DF] rounded-lg px-3 py-2 outline-none focus:border-[#48905A]" />
+                      <div className="text-xs text-[#74747C] mt-1">Registrar valor para recebimento futuro.</div>
+                    </div>
+                  </>
+                )}
 
                 {selectedMethod === 'CREDIT_CARD' && (
                   <div>

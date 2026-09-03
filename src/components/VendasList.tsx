@@ -36,13 +36,21 @@ export default function VendasList() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(cents / 100);
   };
 
+  const [receivable, setReceivable] = useState<any>(null);
+  useEffect(()=>{
+    if(selectedVenda){
+      fetch(`/api/sales/${selectedVenda.id}/receivable`).then(r=>r.json()).then(data=> setReceivable(data)).catch(()=> setReceivable(null));
+    } else setReceivable(null);
+  },[selectedVenda]);
+
   const getPagamentoLabel = (venda: Venda) => {
     if (!venda.pagamentos || venda.pagamentos.length === 0) return 'N/A';
     if (venda.pagamentos.length === 1) {
       const p = venda.pagamentos[0];
       const methodLabel = p.metodo === 'CASH' ? 'Dinheiro' : 
                           p.metodo === 'DEBIT_CARD' ? 'Débito' : 
-                          p.metodo === 'CREDIT_CARD' ? 'Crédito' : 'PIX';
+                          p.metodo === 'CREDIT_CARD' ? 'Crédito' : 
+                          p.metodo === 'STORE_CREDIT' ? 'A prazo' : 'PIX';
       if (p.metodo === 'CREDIT_CARD' && p.installments && p.installments > 1) {
         return `${methodLabel} (${p.installments}x)`;
       }
@@ -177,17 +185,32 @@ export default function VendasList() {
                 </div>
               </div>
 
+              {(selectedVenda as any).clienteId && receivable && (
+                <div className="mb-4 bg-blue-50 border border-blue-100 p-3 rounded-lg text-sm">
+                  <div className="font-semibold text-[#15543C]">Venda a prazo</div>
+                  <div>Cliente: {receivable.customerNameSnapshot || (selectedVenda as any).clienteId}</div>
+                  <div>Vencimento: {new Date(receivable.dueDate+'T12:00:00').toLocaleDateString('pt-BR')}</div>
+                  <div>Conta: {receivable.receivableNumber} — {receivable.status}</div>
+                </div>
+              )}
+
               <h3 className="font-semibold text-[#14171F] mb-3 border-b pb-2">Pagamentos</h3>
               <div className="space-y-3 mb-6">
                 {selectedVenda.pagamentos?.map((p, i) => (
                   <div key={i} className="bg-gray-50 p-3 rounded-lg text-sm">
                     <div className="flex justify-between mb-1">
                       <span className="font-medium text-[#14171F]">
-                        {p.metodo === 'CASH' ? 'Dinheiro' : p.metodo === 'PIX' ? 'PIX' : p.metodo === 'DEBIT_CARD' ? 'Débito' : 'Crédito'}
+                        {p.metodo === 'CASH' ? 'Dinheiro' : p.metodo === 'PIX' ? 'PIX' : p.metodo === 'DEBIT_CARD' ? 'Débito' : p.metodo === 'STORE_CREDIT' ? 'A prazo' : 'Crédito'}
                         {p.metodo === 'CREDIT_CARD' && (p.installments || 1) > 1 && ` (${p.installments} parcelas)`}
                       </span>
-                      <span className="font-bold">{formatCents(p.valorCentavos)}</span>
+                      <span className="font-bold">{p.metodo === 'STORE_CREDIT' ? `Valor a receber ${formatCents(p.valorCentavos)}` : formatCents(p.valorCentavos)}</span>
                     </div>
+                    {p.metodo === 'STORE_CREDIT' && receivable && (
+                      <div className="text-xs text-[#74747C] mt-1">
+                        <div>Vencimento: {new Date(receivable.dueDate+'T12:00:00').toLocaleDateString('pt-BR')}</div>
+                        <div>Conta: {receivable.receivableNumber} — {receivable.status === 'OPEN' ? 'Em aberto' : receivable.status === 'CANCELLED' ? 'Cancelada' : receivable.status}</div>
+                      </div>
+                    )}
                     {p.metodo === 'CREDIT_CARD' && (p.installments || 1) > 1 && (
                       <div className="text-xs text-[#74747C]">
                         {p.installments}x de {formatCents(Math.floor(p.valorCentavos / p.installments!))}

@@ -22,6 +22,7 @@ export interface Cliente {
   cpf?: string;
   ie?: string;
   telefone: string;
+  status?: 'ACTIVE' | 'INACTIVE';
 }
 
 export interface Vendedor {
@@ -54,7 +55,7 @@ export interface VendaItem {
   total: number;
 }
 
-export type MetodoPagamento = 'CASH' | 'PIX' | 'DEBIT_CARD' | 'CREDIT_CARD';
+export type MetodoPagamento = 'CASH' | 'PIX' | 'DEBIT_CARD' | 'CREDIT_CARD' | 'STORE_CREDIT';
 
 export interface PagamentoVenda {
   id: string;
@@ -68,6 +69,11 @@ export interface PagamentoVenda {
 
 export interface ConfiguracaoPagamento {
   maxCreditInstallments: number;
+  allowStoreCredit?: boolean;
+}
+
+export interface ConfiguracaoEstoque {
+  allowNegativeStock: boolean;
 }
 
 
@@ -101,7 +107,7 @@ export interface SessaoCaixa {
   movimentacoes?: MovimentacaoCaixa[];
 }
 
-export type TipoMovimentacaoCaixa = 'SUPPLY' | 'WITHDRAWAL';
+export type TipoMovimentacaoCaixa = 'SUPPLY' | 'WITHDRAWAL' | 'PAYABLE_PAYMENT' | 'RECEIVABLE_RECEIPT' | 'PAYABLE_PAYMENT_REVERSAL' | 'RECEIVABLE_PAYMENT_REVERSAL';
 
 export interface MovimentacaoCaixa {
   id: string;
@@ -112,6 +118,9 @@ export interface MovimentacaoCaixa {
   note?: string;
   operator: string;
   createdAt: string;
+  // reference for payable payment
+  referenceType?: 'ACCOUNT_PAYABLE';
+  referenceId?: string;
 }
 
 
@@ -155,5 +164,198 @@ export interface FornecedorProduto {
   supplierId: string;
   productId: string;
   supplierProductCode?: string;
+  createdAt: string;
+}
+
+// ===== Módulo Compras - Pedido de Compra (ETAPA 11) =====
+export type PurchaseOrderStatus = 'DRAFT' | 'ORDERED' | 'PARTIALLY_RECEIVED' | 'RECEIVED' | 'CANCELLED';
+
+export interface PurchaseOrder {
+  id: string;
+  orderNumber: string; // PC000001
+  supplierId: string;
+  status: PurchaseOrderStatus;
+  expectedDelivery?: string;
+  notes?: string;
+  createdAt: string;
+  updatedAt: string;
+  createdBy?: string;
+  totalCents: number;
+  items: PurchaseOrderItem[];
+}
+
+export interface PurchaseOrderItem {
+  id: string;
+  purchaseOrderId: string;
+  productId: string;
+  productName: string; // snapshot
+  quantityOrdered: number;
+  unitCostCents: number;
+  subtotalCents: number;
+}
+
+// PURCHASE RECEIPT - Entrada real de estoque
+export interface PurchaseReceipt {
+  id: string;
+  receiptNumber: string; // REC-000001
+  purchaseOrderId: string;
+  supplierId: string;
+  receivedBy: string;
+  receivedAt: string;
+  notes?: string;
+  createdAt: string;
+  totalReceivedCents: number;
+  items: PurchaseReceiptItem[];
+}
+
+export interface PurchaseReceiptItem {
+  id: string;
+  purchaseReceiptId: string;
+  purchaseOrderItemId: string;
+  productId: string;
+  productName: string;
+  quantityReceived: number;
+  unitCostCents: number;
+  subtotalCents: number;
+}
+
+// Stock ledger
+export type StockMovementType = 'PURCHASE_RECEIPT' | 'SALE' | 'ADJUSTMENT' | 'CANCEL_SALE' | 'MANUAL_ADJUSTMENT' | 'INVENTORY_ADJUSTMENT';
+export type StockAdjustmentReason =
+  | 'BREAKAGE'
+  | 'DAMAGE'
+  | 'LOSS'
+  | 'EXTRAVIO'
+  | 'INTERNAL_USE'
+  | 'INVENTORY_ADJUSTMENT'
+  | 'CORRECTION'
+  | 'FOUND_SURPLUS'
+  | 'OTHER';
+
+export interface StockMovement {
+  id: string;
+  productId: string;
+  type: StockMovementType;
+  quantity: number; // positivo = entrada, negativo = saída
+  balanceAfter: number;
+  balanceBefore?: number;
+  referenceType: 'PURCHASE_RECEIPT' | 'SALE' | 'OTHER' | 'MANUAL_ADJUSTMENT' | 'INVENTORY_ADJUSTMENT';
+  referenceId: string;
+  createdAt: string;
+  notes?: string;
+  reason?: StockAdjustmentReason;
+  operator?: string;
+}
+
+// ===== Módulo Financeiro - Contas a Pagar (ETAPA 12/13/14) =====
+export type PayableStatus = 'OPEN' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
+export type PayableSourceType = 'PURCHASE_RECEIPT' | 'MANUAL';
+export type PayablePaymentMethod = 'CASH' | 'PIX' | 'BANK_TRANSFER';
+
+export interface AccountPayable {
+  id: string;
+  payableNumber: string; // CP000001
+  supplierId: string;
+  supplierNameSnapshot?: string;
+  supplierDocumentSnapshot?: string;
+  sourceType: PayableSourceType;
+  sourceId?: string | null; // purchaseReceiptId quando PURCHASE_RECEIPT
+  purchaseReceiptId?: string | null; // FK específica nullable
+  description: string;
+  amountCents: number;
+  dueDate: string; // YYYY-MM-DD
+  status: PayableStatus;
+  notes?: string;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  cancelledBy?: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+  // snapshots para busca
+  receiptNumberSnapshot?: string;
+  orderNumberSnapshot?: string;
+  orderIdSnapshot?: string;
+  // PAID info (ETAPA 13)
+  paidAt?: string;
+  paidBy?: string;
+  paymentMethod?: PayablePaymentMethod;
+  paymentId?: string;
+}
+
+export interface AccountPayablePayment {
+  id: string;
+  accountPayableId: string;
+  payableNumberSnapshot?: string;
+  paymentMethod: PayablePaymentMethod;
+  amountCents: number;
+  cashSessionId?: string | null;
+  cashMovementId?: string | null;
+  paidBy: string;
+  paidAt: string;
+  notes?: string;
+  createdAt: string;
+}
+
+// ===== Contas a Receber - Crediário (ETAPA 15/16/17) =====
+export type ReceivableStatus = 'OPEN' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
+export interface AccountReceivable {
+  id: string;
+  receivableNumber: string; // CR000001
+  saleId: string;
+  customerId: string;
+  customerNameSnapshot?: string;
+  customerDocumentSnapshot?: string;
+  description: string;
+  amountCents: number;
+  dueDate: string; // YYYY-MM-DD
+  status: ReceivableStatus;
+  createdAt: string;
+  updatedAt: string;
+  cancelledAt?: string;
+  cancelledBy?: string;
+  cancellationReason?: string;
+  saleNumberSnapshot?: string;
+  // PAID info (ETAPA 16)
+  paidAt?: string;
+  paidBy?: string;
+  paymentMethod?: 'CASH' | 'PIX' | 'BANK_TRANSFER';
+  paymentId?: string;
+}
+
+export interface AccountReceivablePayment {
+  id: string;
+  accountReceivableId: string;
+  receivableNumberSnapshot?: string;
+  paymentMethod: 'CASH' | 'PIX' | 'BANK_TRANSFER';
+  amountCents: number;
+  cashSessionId?: string | null;
+  cashMovementId?: string | null;
+  receivedBy: string;
+  receivedAt: string;
+  notes?: string;
+  createdAt: string;
+}
+
+// ===== Estornos (ETAPA 18) =====
+export interface AccountPayablePaymentReversal {
+  id: string;
+  accountPayablePaymentId: string;
+  reason: string;
+  notes?: string;
+  reversedBy: string;
+  reversedAt: string;
+  cashMovementId?: string | null;
+  createdAt: string;
+}
+
+export interface AccountReceivablePaymentReversal {
+  id: string;
+  accountReceivablePaymentId: string;
+  reason: string;
+  notes?: string;
+  reversedBy: string;
+  reversedAt: string;
+  cashMovementId?: string | null;
   createdAt: string;
 }
